@@ -4,7 +4,7 @@ const scrapePage = require('./scrape-page');
 const fs = require('fs');
 
 const options = {
-    sitemapUrl: 'https://www.stihlusa.com/sitemap.xml',
+    sitemapUrl: 'https://hutsonmayfield.stihldealer.net/sitemap.xml',
     headers: {},
     input: './data/products.csv',
     output: './data/out.json'
@@ -28,13 +28,15 @@ async function run() {
         let urlArr = url.split('/').filter(str => str != "");
 
         let obj = products.find(product => (
-            product.id == urlArr[urlArr.length - 1]
+            product.id.toLowerCase() == urlArr[urlArr.length - 1].toLowerCase()
         ));
 
         if (obj) {
             productsArr.push({
                 ...obj,
-                sourceUrl: url
+                sourceUrl: url,
+                category: urlArr[urlArr.length - 3].toLowerCase(),
+                subcategory: urlArr[urlArr.length - 2].toLowerCase()
             });
         }
     }
@@ -54,13 +56,15 @@ async function run() {
 }
 
 function checkMissing(originalArr, newArr) {
+    let missingArr = []
     if(originalArr.length === newArr.length) return;
     for(let i = 0, len = originalArr.length; i < len; i++) {
         let obj = newArr.find(product => (
-            product.id == originalArr[i].id
+            product.id.toLowerCase() == originalArr[i].id.toLowerCase()
         ));
 
         if(obj === undefined){
+            missingArr.push(originalArr[i].id);
             console.log("Product missing: " + originalArr[i].id);
         }
     }
@@ -71,7 +75,9 @@ async function scrapePages(products) {
     let resultArr = [];
     for(product of products) {
         result = await scrapePage(product);
-        resultArr.push(result);
+        if(result) {
+            resultArr.push(result);
+        }
     }
     return resultArr;
 }

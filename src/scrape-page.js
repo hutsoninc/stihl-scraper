@@ -3,7 +3,7 @@ const puppeteer = require('puppeteer');
 async function scrapePage(product) {
 
     const browser = await puppeteer.launch({
-        headless: false,
+        headless: true,
         ignoreHTTPSErrors: true
     });
     const page = await browser.newPage();
@@ -15,39 +15,57 @@ async function scrapePage(product) {
         await page.goto(product.sourceUrl);
 
         // Wait for page content to load
-        await page.waitForSelector('.page_content', { timeout: 0 });
-        
+        await page.waitForSelector('#product-details', { timeout: 0 });
+
         // Get product title
         details.title = await page.evaluate(() => {
-            return document.querySelector('.page_content').querySelector('h1').innerText.trim();
+            return document.getElementById('productNameContainer').querySelector('span[itemprop=name]').innerText.trim();
         });
 
+        // Get product description
+        if (await page.$('#read-more') !== null) {
+            details.description = await page.evaluate(() => {
+                return document.getElementById('read-more').querySelector('.modal-body').innerText.trim();
+            });
+        } else {
+            details.description = '';
+        }
+
         // Get image url
-        await page.waitForSelector('.detail_image', { timeout: 0 });
         details.image = await page.evaluate(() => {
-            return document.querySelector('.detail_image').src;
+            return document.getElementById('product-thumb-container').querySelector('img').src;
+        });
+
+        // Get product price
+        details.price = await page.evaluate(() => {
+            return document.getElementById('product-price').innerText.trim();
         });
 
         // Get specs
-        await page.waitForSelector('.technical_data', { timeout: 0 });
-        details.specs = await page.evaluate(() => {
-            let dataTable = document.querySelector('.technical_data');
-            let headers = dataTable.querySelectorAll('.col1');
-            let info = dataTable.querySelectorAll('.col2');
+        if (await page.$('.specs-table-tab') !== null) {
+            details.specs = await page.evaluate(() => {
+                let dataTableBody = document.querySelector('table.specs-table-tab tbody');
+                let rows = dataTableBody.querySelectorAll('tr');
 
-            let result = [];
+                let result = [];
 
-            for (let i = 0, len = headers.length; i < len; i++) {
-                result.push({
-                    name: headers[i].innerText.trim(),
-                    description: info[i].innerText.trim()
-                });
-            }
+                for (let i = 0, len = rows.length; i < len; i++) {
+                    let cols = rows[i].querySelectorAll('td');
+                    result.push({
+                        name: cols[0].innerText.trim(),
+                        description: cols[1].innerText.trim()
+                    });
+                }
 
-            return result;
-        });
+                return result;
+            });
+        } else {
+            details.specs = []
+        }
 
         await browser.close();
+
+        console.log('Scraped ' + product.id);
 
         return {
             ...details,
@@ -55,7 +73,8 @@ async function scrapePage(product) {
         }
 
     } catch (error) {
-        console.log("ERROR - Product: " + JSON.stringify(product) + " - Error: " + error);
+        console.log("Error " + product.id);
+        console.log(error);
         browser.close();
     }
 }
